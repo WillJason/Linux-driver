@@ -1,13 +1,14 @@
 /*
-ÏîÄ¿£ºÉè±¸Ê÷Ö®LEDµãµÆ
-Ó²¼şÆ½Ì¨£ºtiny4412
-ÏµÍ³£ºlinux-4.4
-ÎÄ¼şÏµÍ³£ºbusybox-1.25
-±àÒëÆ÷£º arm-none-linux-gnueabi-gcc£¨gcc version 4.8.3 20140320£©
-uboot£ºÓÑÉÆ×Ô´øuboot
+é¡¹ç›®ï¼šè®¾å¤‡æ ‘ä¹‹LEDç‚¹ç¯
+ç¡¬ä»¶å¹³å°ï¼štiny4412
+ç³»ç»Ÿï¼šlinux-4.4
+æ–‡ä»¶ç³»ç»Ÿï¼šbusybox-1.25
+ç¼–è¯‘å™¨ï¼š arm-none-linux-gnueabi-gccï¼ˆgcc version 4.8.3 20140320ï¼‰
+ubootï¼šå‹å–„è‡ªå¸¦uboot
+devicetree:
 */
 
-/*Éè±¸Ê÷ÎÄ¼ş*/
+/*è®¾å¤‡æ ‘æ–‡ä»¶*/
 /* 
  * FriendlyARM's Exynos4412 based TINY4412 board device tree source 
  * 
@@ -108,9 +109,9 @@ uboot£ºÓÑÉÆ×Ô´øuboot
 &pinctrl_1 {  
     led_demo: led{  
             samsung,pins = "gpm4-0", "gpm4-1" ,"gpm4-2", "gpm4-3";  
-            samsung,pin-function = <0x1>;   //1ÎªÊä³ö  
-            samsung,pin-pud = <0x0>;        //Ã»ÓĞÉÏÀ­  
-            samsung,pin-drv = <0x0>;        //Çı¶¯Ç¿¶È£¿  
+            samsung,pin-function = <0x1>;   //1ä¸ºè¾“å‡º  
+            samsung,pin-pud = <0x0>;        //æ²¡æœ‰ä¸Šæ‹‰  
+            samsung,pin-drv = <0x0>;        //é©±åŠ¨å¼ºåº¦ï¼Ÿ  
     };  
 };   
   
@@ -171,7 +172,7 @@ uboot£ºÓÑÉÆ×Ô´øuboot
 };  
 
 
-/*Çı¶¯*/
+/*é©±åŠ¨*/
 [cpp] view plain copy
 #include <linux/module.h>  
 #include <linux/kernel.h>  
@@ -187,7 +188,7 @@ uboot£ºÓÑÉÆ×Ô´øuboot
 #define LED_CNT   4  
   
 static int  major;  
-static struct cdev  led_cdev;   //ÄÚºËÖĞÓÃcdevÃèÊöÒ»¸ö×Ö·ûÉè±¸  
+static struct cdev  led_cdev;   //å†…æ ¸ä¸­ç”¨cdevæè¿°ä¸€ä¸ªå­—ç¬¦è®¾å¤‡  
 static struct class *cls;  
 static int led1,led2,led3,led4;  
   
@@ -264,28 +265,28 @@ static int led_probe(struct platform_device *pdev) {
     dev_t devid;  
     struct pinctrl *pctrl;  
     struct pinctrl_state *pstate;  
-    /*»ñÈ¡Ò»¸öpinctrl¾ä±ú£¬²ÎÊıÊÇdevÊÇ°üº¬Õâ¸öpinµÄdevice½á¹¹Ìå¼´xxxÕâ¸öÉè±¸µÄdevice
-		»ñÈ¡Éè±¸²Ù×÷¾ä±ú£¨Éè±¸Ä£ĞÍÖĞµÄstruct device£©µÄpin control state holder£¨struct pinctrl£©*/
+    /*è·å–ä¸€ä¸ªpinctrlå¥æŸ„ï¼Œå‚æ•°æ˜¯devæ˜¯åŒ…å«è¿™ä¸ªpinçš„deviceç»“æ„ä½“å³xxxè¿™ä¸ªè®¾å¤‡çš„device
+		è·å–è®¾å¤‡æ“ä½œå¥æŸ„ï¼ˆè®¾å¤‡æ¨¡å‹ä¸­çš„struct deviceï¼‰çš„pin control state holderï¼ˆstruct pinctrlï¼‰*/
     pctrl = devm_pinctrl_get(dev);  
     if(pctrl == NULL)  
     {  
         printk("devm_pinctrl_get error\n");  
     }  
-    /*»ñÈ¡Õâ¸öpin¶ÔÓ¦pin_state£¨Òı½Å×´Ì¬-turnon_tes/turnoff_tes£©s*/
+    /*è·å–è¿™ä¸ªpinå¯¹åº”pin_stateï¼ˆå¼•è„šçŠ¶æ€-turnon_tes/turnoff_tesï¼‰s*/
     pstate = pinctrl_lookup_state(pctrl, "led_demo");  
     if(pstate == NULL)  
     {  
         printk("pinctrl_lookup_state error\n");  
     }  
-    /*ÉèÖÃÒı½ÅÎªÎªÄ³¸östata -- turnon_tes/turnoff_tes*/
-    pinctrl_select_state(pctrl, pstate);//ÉèÖÃÎªÊä³öÄ£Ê½   
+    /*è®¾ç½®å¼•è„šä¸ºä¸ºæŸä¸ªstata -- turnon_tes/turnoff_tes*/
+    pinctrl_select_state(pctrl, pstate);//è®¾ç½®ä¸ºè¾“å‡ºæ¨¡å¼   
     printk("enter %s\n",__func__);  
-    /*µÃµ½GPIOµÄ±àºÅ*/
+    /*å¾—åˆ°GPIOçš„ç¼–å·*/
     led1 = of_get_named_gpio(dev->of_node, "tiny4412,int_gpio1", 0);;
-    /*of_get_named_gpio£º´Ëº¯ÊıÊÇ½âÎöÉè±¸Ê÷µÄº¯Êı£¬ÎÒÃÇÍ¨¹ıÕâ¸öº¯ÊıÈ¥½âÎöÉè±¸Ê÷£¬
-    tiny4412,int_gpio1 = <&gpm4 0 GPIO_ACTIVE_HIGH>; ¸ú×ÙÏÂÈ¥»á·¢ÏÖÕâ¸öº¯ÊıµôÓÃ
-    ÁËlist = of_get_property(np, "tiny4412,int_gpio2", &size);Éè±¸Ê÷½âÎöÊÇ´´½çÁË
-    Éè±¸½Úµã£¬ÏÖÔÚÍ¨¹ıÕâ¸öº¯ÊıÈ¥»ñÈ¡ÊôĞÔ¡£*/  
+    /*of_get_named_gpioï¼šæ­¤å‡½æ•°æ˜¯è§£æè®¾å¤‡æ ‘çš„å‡½æ•°ï¼Œæˆ‘ä»¬é€šè¿‡è¿™ä¸ªå‡½æ•°å»è§£æè®¾å¤‡æ ‘ï¼Œ
+    tiny4412,int_gpio1 = <&gpm4 0 GPIO_ACTIVE_HIGH>; è·Ÿè¸ªä¸‹å»ä¼šå‘ç°è¿™ä¸ªå‡½æ•°æ‰ç”¨
+    äº†list = of_get_property(np, "tiny4412,int_gpio2", &size);è®¾å¤‡æ ‘è§£ææ˜¯åˆ›ç•Œäº†
+    è®¾å¤‡èŠ‚ç‚¹ï¼Œç°åœ¨é€šè¿‡è¿™ä¸ªå‡½æ•°å»è·å–å±æ€§ã€‚*/  
     led2 = of_get_named_gpio(dev->of_node, "tiny4412,int_gpio2", 0);;  
     led3 = of_get_named_gpio(dev->of_node, "tiny4412,int_gpio3", 0);;  
     led4 = of_get_named_gpio(dev->of_node, "tiny4412,int_gpio4", 0);;  
@@ -300,24 +301,24 @@ static int led_probe(struct platform_device *pdev) {
         printk("led2 %d\n",led2);  
         printk("led3 %d\n",led3);  
         printk("led4 %d\n",led4);  
-        /*»ñÈ¡Ò»¸öGPIO²¢³õÊ¼»¯ÊôĞÔ*/
+        /*è·å–ä¸€ä¸ªGPIOå¹¶åˆå§‹åŒ–å±æ€§*/
         devm_gpio_request_one(dev, led1, GPIOF_OUT_INIT_HIGH, "LED1");  
         devm_gpio_request_one(dev, led2, GPIOF_OUT_INIT_HIGH, "LED2");  
         devm_gpio_request_one(dev, led3, GPIOF_OUT_INIT_HIGH, "LED3");  
         devm_gpio_request_one(dev, led4, GPIOF_OUT_INIT_HIGH, "LED4");  
     }  
   
-    if(alloc_chrdev_region(&devid, 0, LED_CNT, "led") < 0)/* (major,0~1) ¶ÔÓ¦ hello_fops, (major, 2~255)¶¼²»¶ÔÓ¦hello_fops */  
+    if(alloc_chrdev_region(&devid, 0, LED_CNT, "led") < 0)/* (major,0~1) å¯¹åº” hello_fops, (major, 2~255)éƒ½ä¸å¯¹åº”hello_fops */  
     {  
         printk("%s ERROR\n",__func__);  
         goto error;  
     }  
     major = MAJOR(devid);                       
   
-    cdev_init(&led_cdev, &led_fops);        //°ó¶¨ÎÄ¼ş²Ù×÷º¯Êı  
-    cdev_add(&led_cdev, devid, LED_CNT);    //×¢²áµ½ÄÚºË  
+    cdev_init(&led_cdev, &led_fops);        //ç»‘å®šæ–‡ä»¶æ“ä½œå‡½æ•°  
+    cdev_add(&led_cdev, devid, LED_CNT);    //æ³¨å†Œåˆ°å†…æ ¸  
   
-    cls = class_create(THIS_MODULE, "led"); //´´½¨ledÀà,ÏòÀàÖĞÌí¼ÓÉè±¸,mdev»á°ïÎÒÃÇ´´½¨Éè±¸½Úµã  
+    cls = class_create(THIS_MODULE, "led"); //åˆ›å»ºledç±»,å‘ç±»ä¸­æ·»åŠ è®¾å¤‡,mdevä¼šå¸®æˆ‘ä»¬åˆ›å»ºè®¾å¤‡èŠ‚ç‚¹  
     device_create(cls, NULL, MKDEV(major, 0), NULL, "led0");   
     device_create(cls, NULL, MKDEV(major, 1), NULL, "led1");   
     device_create(cls, NULL, MKDEV(major, 2), NULL, "led2");   
@@ -380,11 +381,11 @@ module_init(led_init);
 module_exit(led_exit);  
   
 MODULE_LICENSE("GPL"); 
-/*Éè±¸Ê÷Ë¼Â·ÊÇ£ºubootÆô¶¯Ê±½«Éè±¸Ê÷µØÖ·´«¸øÄÚºË£¬ÄÚºË½âÎöÉè±¸Ê÷£¬²¢´´½¨Éè±¸£¬³õÊ¼»¯Ïà¹ØÊôĞÔ
-£¬Çı¶¯ÖĞÍ¨¹ıof_get_XXXº¯ÊıÈ¥»ñÈ¡Éè±¸Ê÷¼ÓÔØÊ±´´½¨µÄÉè±¸¡£ÏëÒªÖªµÀofº¯Êı×öÁËÊ²Ã´£¬¾ÍÈ¥×·×ÙÕâ¸ö
-º¯Êı×îºóµ÷ÓÃÁËÊ²Ã´£¬Í¬Ê±Ò²¾ÍÖªµÀÁËÄÚºË½âÎöÉè±¸Ê÷µÄÊ±ºòÎªÎÒÃÇ´´½¨ÁËÊ²Ã´¡£*/
+/*è®¾å¤‡æ ‘æ€è·¯æ˜¯ï¼šubootå¯åŠ¨æ—¶å°†è®¾å¤‡æ ‘åœ°å€ä¼ ç»™å†…æ ¸ï¼Œå†…æ ¸è§£æè®¾å¤‡æ ‘ï¼Œå¹¶åˆ›å»ºè®¾å¤‡ï¼Œåˆå§‹åŒ–ç›¸å…³å±æ€§
+ï¼Œé©±åŠ¨ä¸­é€šè¿‡of_get_XXXå‡½æ•°å»è·å–è®¾å¤‡æ ‘åŠ è½½æ—¶åˆ›å»ºçš„è®¾å¤‡ã€‚æƒ³è¦çŸ¥é“ofå‡½æ•°åšäº†ä»€ä¹ˆï¼Œå°±å»è¿½è¸ªè¿™ä¸ª
+å‡½æ•°æœ€åè°ƒç”¨äº†ä»€ä¹ˆï¼ŒåŒæ—¶ä¹Ÿå°±çŸ¥é“äº†å†…æ ¸è§£æè®¾å¤‡æ ‘çš„æ—¶å€™ä¸ºæˆ‘ä»¬åˆ›å»ºäº†ä»€ä¹ˆã€‚*/
 
-/*²âÊÔÓ¦ÓÃ³ÌĞò*/
+/*æµ‹è¯•åº”ç”¨ç¨‹åº*/
 #include <sys/types.h>  
 #include <sys/stat.h>  
 #include <fcntl.h>  
@@ -423,13 +424,13 @@ int main(int argc, char **argv)
     return 0;  
 }  
 
-/*ÉÕĞ´²âÊÔ*/
-#u-boot£º
+/*çƒ§å†™æµ‹è¯•*/
+#u-bootï¼š
 setenv bootargs  'root=/dev/nfs  rw  nfsroot=192.168.1.123:/work/nfs/rootfs_for_tiny4412/rootfs ethmac=1C:6F:65:34:51:7E  ip=192.168.1.125:192.168.1.123:192.168.1.1:255.255.255.0::eth0:off console=ttySAC0,115200  init=/linuxrc'
-#u-boot£ºsave
-#u-boot£ºdnw 0x40600000
+#u-bootï¼šsave
+#u-bootï¼šdnw 0x40600000
 dnw arch/arm/boot/uImage
-#u-boot£ºdnw 0x42000000
+#u-bootï¼šdnw 0x42000000
 dnw  arch/arm/boot/dts/exynos4412-tiny4412.dtb
 bootm 0x40600000 - 0x42000000
 
