@@ -154,6 +154,7 @@ exit:
 （4）先后调用rtc_dev_add_device，rtc_sysfs_add_device，rtc_proc_add_device三个函数。 rtc_dev_add_device注册字符设备，
      rtc_sysfs_add_device只是为设备添加了一个闹钟属性，rtc_proc_add_device 创建proc文件系统接口。
 */
+//现在来看看rtc子系统是怎么注册上的：
 //class.c中初始化函数rtc_init()为：
 static int __init rtc_init(void)
 {
