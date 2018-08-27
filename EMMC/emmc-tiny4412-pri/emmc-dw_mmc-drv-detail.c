@@ -20,7 +20,7 @@ Host 驱动层：针对不同主机端的SDHC、MMC控制器的驱动；
 Client 驱动层：针对不同客户端的设备驱动程序。如SD卡、T-flash卡、SDIO接口的GPS和wi-fi等设备驱动。
 
 */
-//需要添加sd的平台设备信息
+//需要添加mmc的平台设备信息
 static void __init smdk4x12_machine_init(void)
 {
 	//...
