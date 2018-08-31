@@ -166,8 +166,28 @@ static const struct pwm_ops pwm_samsung_ops = {
 	.set_polarity	= pwm_samsung_set_polarity,
 	.owner		= THIS_MODULE,
 };
+//我们向export文件写入0时，就会调用这里的pwm_samsung_request函数
+/*
+接着上面的操作，继续执行命令： 
+cd pwm0 
+里面有七个文件： 
+capture enable polarity uevent duty_cycle period power 
+其中， 
+enable：写入1使能pwm，写入0关闭pwm； 
+polarity：有normal或inversed两个参数选择，表示TOUT_n输出引脚电平翻转； 
+duty_cycle：在normal模式下，表示一个周期内高电平持续的时间（单位：纳秒），在reversed模式下，表示一个周期中低电平持续的时间（单位：纳秒）； 
+period：表示pwm波的周期(单位：纳秒)； 
+往里面写入，就是会调用到pwm_samsung_ops结构体里的成员函数。
 
+所以可以这样使用pwm： 
 
+echo 1000000000 > period 
+echo 500000000 > duty_cycle 
+echo normal > polarity 
+echo 1 > enable 
+
+这样就是占空比为500000000/1000000000的pwm出现。 
+*/
 //设备树里的设备节点:
 pwm: pwm@139D0000 {
 		compatible = "samsung,exynos4210-pwm";
@@ -189,6 +209,7 @@ pwm: pwm@139D0000 {
 	samsung,pwm-outputs = <0>;
 };
 
+//重启系统后，可以查看到:
 
 
 
