@@ -328,6 +328,41 @@ sdhci_2: sdhci@12530000 {
 
 
 //重启系统后，可以查看到:
+~ # fdisk -l                                                                    
+
+Disk /dev/mmcblk1: 3909 MB, 3909091328 bytes
+226 heads, 33 sectors/track, 1023 cylinders
+Units = cylinders of 7458 * 512 = 3818496 bytes
+
+        Device Boot      Start         End      Blocks  Id System
+/dev/mmcblk1p1             653        1020     1372272   c Win95 FAT32 (LBA)
+/dev/mmcblk1p2               6         287     1051578  83 Linux
+/dev/mmcblk1p3             288         569     1051578  83 Linux
+/dev/mmcblk1p4             570         652      309507  83 Linux
+
+Partition table entries are not in disk order
+
+Disk /dev/mmcblk1boot1: 4 MB, 4194304 bytes
+4 heads, 16 sectors/track, 128 cylinders
+Units = cylinders of 64 * 512 = 32768 bytes
+
+Disk /dev/mmcblk1boot1 doesn't contain a valid partition table
+
+Disk /dev/mmcblk1boot0: 4 MB, 4194304 bytes
+4 heads, 16 sectors/track, 128 cylinders
+Units = cylinders of 64 * 512 = 32768 bytes
+
+Disk /dev/mmcblk1boot0 doesn't contain a valid partition table
+
+Disk /dev/mmcblk0: 16.3 GB, 16358834176 bytes
+255 heads, 63 sectors/track, 1988 cylinders
+Units = cylinders of 16065 * 512 = 8225280 bytes
+
+        Device Boot      Start         End      Blocks  Id System
+/dev/mmcblk0p1             210        1988    14285824   c Win95 FAT32 (LBA)
+/dev/mmcblk0p2               3         133     1048576  83 Linux
+/dev/mmcblk0p3             133         171      307200  83 Linux
+/dev/mmcblk0p4             171         210      307200  83 Linux
 
 
 

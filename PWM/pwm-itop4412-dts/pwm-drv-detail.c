@@ -210,10 +210,38 @@ pwm: pwm@139D0000 {
 };
 
 //重启系统后，可以查看到:
+~ # cd /sys/class/pwm/pwmchip0/                                                 
+/sys/devices/platform/139d0000.pwm/pwm/pwmchip0 # ls
+device     export     npwm       power      subsystem  uevent     unexport
+/sys/devices/platform/139d0000.pwm/pwm/pwmchip0 # echo 0 > export               
+/sys/devices/platform/139d0000.pwm/pwm/pwmchip0 # ls
+device     npwm       pwm0       uevent
+export     power      subsystem  unexport
+/sys/devices/platform/139d0000.pwm/pwm/pwmchip0 # cd pwm0/                      
+/sys/devices/platform/139d0000.pwm/pwm/pwmchip0/pwm0 # ls
+capture     duty_cycle  enable      period      polarity    power       uevent
+/sys/devices/platform/139d0000.pwm/pwm/pwmchip0/pwm0 # echo normal > polarity   
+sh: write error: Invalid argument
+/sys/devices/platform/139d0000.pwm/pwm/pwmchip0/pwm0 # echo 1000000000 > period                                                                           
+/sys/devices/platform/139d0000.pwm/pwm/pwmchip0/pwm0 # echo 100000000 > duty_cycle                                                                              
+/sys/devices/platform/139d0000.pwm/pwm/pwmchip0/pwm0 # echo 1 > enable          
+/sys/devices/platform/139d0000.pwm/pwm/pwmchip0/pwm0 # echo 0 > enable 
 
+/*
+npwm的意思是Exynos4412支持的pwm通道个数（在驱动里将这个值设置为了5，
+即将timer4也包含在内了）。蜂鸣器对应的的PWM0，所以我们向export中写入0，
+然后就会在当前目录下产生了一个名为pwm0的新目录，其中是设置PWM0参数的配置文件。
 
+period：表示pwm波的周期(单位：纳秒)；
 
+duty_cycle：在normal模式下，表示一个周期内高电平持续的时间（单位：纳秒），
+所以duty_cycle <= period；在reversed模式下，表示一个周期中低电平持续的时间（单位：纳秒）；
 
+enable：向其中写入1表示启动pwm，写入0，表示关闭pwm；
+实现一个频率为1Hz， 占空比为1:9的例子：
+这里：1秒 = 1 000 000 000 纳秒
+向unexport中写入0，pwm0目录会被自动删除。
+*/
 
 
 
