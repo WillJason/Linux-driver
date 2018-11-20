@@ -875,6 +875,8 @@ static int s3c24xxfb_probe(struct platform_device *pdev,
 	mach_info->num_displays = 1;
 	mach_info->default_display = 0;
 
+/*直接读设备树节点中的各种属性值, 用来设置驱动参数*/
+
 	of_property_read_u32(np, "lcdcon5", (u32 *)(&display->lcdcon5));
 	of_property_read_u32(np, "type", &display->type);
 	of_property_read_u16(np, "width", &display->width);
