@@ -21,6 +21,55 @@ SocketCAN的设计基于新的协议族PF_CAN.协议族PF_CAN一方面向应用程序提供Socket接口，
 （目前协议族中只包括两种CAN协议：CAN_RAW和CAN_BCM）。此外协议族还支持各种CAN帧的订阅，支持多个进程
 同时进行SOCKET CAN通信，每个进程可以同时使用不同协议进行各种帧的收发。
 
+CAN子系统：
+can子系统实现协议族PF_CAN，主要包括三个C文件：af_can.c、raw.c和bcm.c。其中af_can.c是整个子系统的
+核心管理文件，raw.c和bcm.c分别是raw和bcm协议的实现文件。CAN子系统与其他模块的关系如图：
+
+						BSD Socket Layer
+								|
+						CAN子系统
+			CAN_RAW        CAN_BCM
+								|
+				  Network	Layer		
+				  			|
+				  	CAN设备驱动
+				  	
+		af_can.c是Socket CAN的核心管理模块。can_creat()创建CAN通信所需的socket。当应用程序调用socket（）
+创建socket时，就会简介调用此函数：can_proto_register(struct can_proto *)和can_proto_unregister(
+struct can_proto *)可被用来动态加载和卸载CAN传输协议，传输协议在此用struct can_proto表示。
+CAN_RAW和CAN_BCM协议分别定义如下：
+	static const struct can_proto raw_can_proto = {
+	.type       = SOCK_RAW,
+	.protocol   = CAN_RAW,
+	.ops        = &raw_ops,
+	.prot       = &raw_proto,
+};
+
+static const struct can_proto bcm_can_proto = {
+	.type       = SOCK_DGRAM,
+	.protocol   = CAN_BCM,
+	.ops        = &bcm_ops,
+	.prot       = &bcm_proto,
+};
+
+can_rcv()是网络层用来接收包的操作函数，与包对应的操作函数通过定义struct packet_type来指明：
+ *
+ * af_can module init/exit functions
+ *
+
+static struct packet_type can_packet __read_mostly = {
+	.type = cpu_to_be16(ETH_P_CAN),
+	.dev  = NULL,
+	.func = can_rcv,
+};
+	can_rcv()中调用can_rcv_filter()对收到的CAN帧进行过滤处理，只接收用户通过can_rx_register()订阅的
+CAN帧；与can_rx_register()对应的函数can_rx_unregister（）用来取消用户订阅的CAN帧。
+	raw.c和bcm.c分别是协议族里用来实现raw.socket和bcm.socket通信所需的文件。利用CAN_RAW和CAN_BCM协议
+均能实现帧ID的订阅，并且利用CAN_BCM协议还能进行帧内容的过滤。
+	其中，raw_rcv()和bcm_send_to_user()是传输层用来接收CAN帧的操作函数，当can_rcv()接收到用户订阅的帧
+时，就会调用这两函数将帧放到接收队列中，然后raw_recvmsg()或bcm_recvmsg()就会通过调用
+skb_recv_datagram()来从接收队列中取出帧，从而把帧进一步传送到上层；
+	
 
 */
 
