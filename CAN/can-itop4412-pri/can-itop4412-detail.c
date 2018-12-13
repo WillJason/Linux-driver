@@ -336,13 +336,577 @@ static struct spi_driver mcp251x_can_driver = {
 	.resume = mcp251x_can_resume,
 };
 
+/*-----------------------------------------------------------------------------------
+samsung spi-s3c64xx.c主机控制器驱动probe函数分析
+-----------------------------------------------------------------------------------*/
+static int __init s3c64xx_spi_probe(struct platform_device *pdev)
+{
+	struct resource	*mem_res, *dmatx_res, *dmarx_res;
+	struct s3c64xx_spi_driver_data *sdd;
+	struct s3c64xx_spi_info *sci;
+	struct spi_master *master;
+	int ret;
+
+	printk("%s(%d)\n", __FUNCTION__, __LINE__);
+
+	if (pdev->id < 0) {
+		dev_err(&pdev->dev,
+				"Invalid platform device id-%d\n", pdev->id);
+		return -ENODEV;
+	}
+
+	if (pdev->dev.platform_data == NULL) {
+		dev_err(&pdev->dev, "platform_data missing!\n");
+		return -ENODEV;
+	}
+
+	sci = pdev->dev.platform_data;//获取设备信息（从这里可看到没有设备树相关的判断，所以该驱动不适用设备树）
+	if (!sci->src_clk_name) {
+		dev_err(&pdev->dev,
+			"Board init must call s3c64xx_spi_set_info()\n");
+		return -EINVAL;
+	}
+
+	/* Check for availability of necessary resource */
+
+	dmatx_res = platform_get_resource(pdev, IORESOURCE_DMA, 0);//得到平台驱动DMA tx资源
+	if (dmatx_res == NULL) {
+		dev_err(&pdev->dev, "Unable to get SPI-Tx dma resource\n");
+		return -ENXIO;
+	}
+
+	dmarx_res = platform_get_resource(pdev, IORESOURCE_DMA, 1);//得到平台驱动DMA rx资源
+	if (dmarx_res == NULL) {
+		dev_err(&pdev->dev, "Unable to get SPI-Rx dma resource\n");
+		return -ENXIO;
+	}
+
+	mem_res = platform_get_resource(pdev, IORESOURCE_MEM, 0);//获取IO内存资源
+	if (mem_res == NULL) {
+		dev_err(&pdev->dev, "Unable to get SPI MEM resource\n");
+		return -ENXIO;
+	}
+
+	//为结构体spi_master和结构体s3c64xx_spi_driver_data分配存储空间，并将s3c64xx_spi_driver_data设为spi_master的drvdata。
+	master = spi_alloc_master(&pdev->dev,
+				sizeof(struct s3c64xx_spi_driver_data));
+	if (master == NULL) {
+		dev_err(&pdev->dev, "Unable to allocate SPI Master\n");
+		return -ENOMEM;
+	}
+
+	/** 
+     * platform_set_drvdata 和 platform_get_drvdata 
+     * probe函数中定义的局部变量，如果我想在其他地方使用它怎么办呢？ 
+     * 这就需要把它保存起来。内核提供了这个方法， 
+     * 使用函数platform_set_drvdata()可以将master保存成平台总线设备的私有数据。 
+     * 以后再要使用它时只需调用platform_get_drvdata()就可以了。 
+ */  
+	platform_set_drvdata(pdev, master);
+
+	//从master中获得s3c64xx_spi_driver_data，并初始化相关成员  
+	sdd = spi_master_get_devdata(master);
+	sdd->master = master;
+	sdd->cntrlr_info = sci;
+	sdd->pdev = pdev;
+	sdd->sfr_start = mem_res->start;
+	sdd->tx_dmach = dmatx_res->start;
+	sdd->rx_dmach = dmarx_res->start;
+
+	sdd->cur_bpw = 8;
+
+	//master相关成员的初始化 
+	master->bus_num = pdev->id;//总线号
+	master->setup = s3c64xx_spi_setup;
+	master->transfer = s3c64xx_spi_transfer;
+	master->num_chipselect = sci->num_cs;//该总线上的设备数 
+	master->dma_alignment = 8;
+	/* the spi->mode bits understood by this driver: */
+	master->mode_bits = SPI_CPOL | SPI_CPHA | SPI_CS_HIGH;
+
+	if (request_mem_region(mem_res->start,
+			resource_size(mem_res), pdev->name) == NULL) {
+		dev_err(&pdev->dev, "Req mem region failed\n");
+		ret = -ENXIO;
+		goto err0;
+	}
+
+	sdd->regs = ioremap(mem_res->start, resource_size(mem_res));//申请IO内存 
+	if (sdd->regs == NULL) {
+		dev_err(&pdev->dev, "Unable to remap IO\n");
+		ret = -ENXIO;
+		goto err1;
+	}
+
+	//SPI的IO管脚配置，将相应的IO管脚设置为SPI功能 
+	if (sci->cfg_gpio == NULL || sci->cfg_gpio(pdev)) {
+		dev_err(&pdev->dev, "Unable to config gpio\n");
+		ret = -EBUSY;
+		goto err2;
+	}
+
+	//使能时钟  
+	/* Setup clocks */
+	sdd->clk = clk_get(&pdev->dev, "spi");
+	if (IS_ERR(sdd->clk)) {
+		dev_err(&pdev->dev, "Unable to acquire clock 'spi'\n");
+		ret = PTR_ERR(sdd->clk);
+		goto err3;
+	}
+
+	if (clk_enable(sdd->clk)) {
+		dev_err(&pdev->dev, "Couldn't enable clock 'spi'\n");
+		ret = -EBUSY;
+		goto err4;
+	}
+
+	sdd->src_clk = clk_get(&pdev->dev, sci->src_clk_name);
+	if (IS_ERR(sdd->src_clk)) {
+		dev_err(&pdev->dev,
+			"Unable to acquire clock '%s'\n", sci->src_clk_name);
+		ret = PTR_ERR(sdd->src_clk);
+		goto err5;
+	}
+
+	if (clk_enable(sdd->src_clk)) {
+		dev_err(&pdev->dev, "Couldn't enable clock '%s'\n",
+							sci->src_clk_name);
+		ret = -EBUSY;
+		goto err6;
+	}
+
+	sdd->workqueue = create_singlethread_workqueue(
+						dev_name(master->dev.parent));
+	if (sdd->workqueue == NULL) {
+		dev_err(&pdev->dev, "Unable to create workqueue\n");
+		ret = -ENOMEM;
+		goto err7;
+	}
+	printk("%s(%d)\n", __FUNCTION__, __LINE__);
+	
+	//硬件初始化，初始化设置寄存器，包括对SPIMOSI、SPIMISO、SPICLK引脚的设置 
+	/* Setup Deufult Mode */
+	s3c64xx_spi_hwinit(sdd, pdev->id);
+
+	//锁、工作队列等初始化 
+	spin_lock_init(&sdd->lock);
+	init_completion(&sdd->xfer_completion);
+	INIT_WORK(&sdd->work, s3c64xx_spi_work);
+	INIT_LIST_HEAD(&sdd->queue);
+
+	//注册spi_master到spi子系统中去
+	if (spi_register_master(master)) {
+		dev_err(&pdev->dev, "cannot register SPI master\n");
+		ret = -EBUSY;
+		goto err8;
+	}
+
+	dev_dbg(&pdev->dev, "Samsung SoC SPI Driver loaded for Bus SPI-%d "
+					"with %d Slaves attached\n",
+					pdev->id, master->num_chipselect);
+	dev_dbg(&pdev->dev, "\tIOmem=[0x%x-0x%x]\tDMA=[Rx-%d, Tx-%d]\n",
+					mem_res->end, mem_res->start,
+					sdd->rx_dmach, sdd->tx_dmach);
+	printk("%s(%d)\n", __FUNCTION__, __LINE__);
+	return 0;
+
+err8:
+	destroy_workqueue(sdd->workqueue);
+err7:
+	clk_disable(sdd->src_clk);
+err6:
+	clk_put(sdd->src_clk);
+err5:
+	clk_disable(sdd->clk);
+err4:
+	clk_put(sdd->clk);
+err3:
+err2:
+	iounmap((void *) sdd->regs);
+err1:
+	release_mem_region(mem_res->start, resource_size(mem_res));
+err0:
+	platform_set_drvdata(pdev, NULL);
+	spi_master_put(master);
+
+	return ret;
+}
+
+/*-----------------------------------------------------------------------------------
+mcp251x.c外设驱动probe函数分析
+-----------------------------------------------------------------------------------*/
+//我们先来看一下设备初始化函数
+static struct spi_driver mcp251x_can_driver = {
+	.driver = {
+		.name = DEVICE_NAME,
+		.bus = &spi_bus_type,
+		.owner = THIS_MODULE,
+	},
+
+	.id_table = mcp251x_id_table,
+	.probe = mcp251x_can_probe,
+	.remove = __devexit_p(mcp251x_can_remove),
+	.suspend = mcp251x_can_suspend,
+	.resume = mcp251x_can_resume,
+};
+
+static int __init mcp251x_can_init(void)
+{
+	return spi_register_driver(&mcp251x_can_driver);
+}
+//这是一个非常重要的结构体，在probe函数中被注册
+static const struct net_device_ops mcp251x_netdev_ops = {
+	.ndo_open = mcp251x_open,
+	.ndo_stop = mcp251x_stop,
+	.ndo_start_xmit = mcp251x_hard_start_xmit,
+};
+
+static int __devinit mcp251x_can_probe(struct spi_device *spi)
+{
+	struct net_device *net;
+	struct mcp251x_priv *priv;
+	struct mcp251x_platform_data *pdata = spi->dev.platform_data;//获取SPI设备信息
+	int ret = -ENODEV;
+
+	if (!pdata)
+		/* Platform data is required for osc freq */
+		goto error_out;
+
+	//分配和设置CAN网络设备的空间
+	/* Allocate can/net device */
+	net = alloc_candev(sizeof(struct mcp251x_priv), TX_ECHO_SKB_MAX);
+	if (!net) {
+		ret = -ENOMEM;
+		goto error_alloc;
+	}
+
+	net->netdev_ops = &mcp251x_netdev_ops;
+	net->flags |= IFF_ECHO;
+
+	//通过指针偏移获得私有数据的首地址
+	priv = netdev_priv(net);
+
+	//设置CAN的私有数据
+	/* add by cym 20131018 */
+	priv->can.bittiming.bitrate = 250000;//波特率
+	/* end add */
+	
+	priv->can.bittiming_const = &mcp251x_bittiming_const;
+	priv->can.do_set_mode = mcp251x_do_set_mode;
+	priv->can.clock.freq = pdata->oscillator_frequency / 2;
+	priv->can.ctrlmode_supported = CAN_CTRLMODE_3_SAMPLES |
+		CAN_CTRLMODE_LOOPBACK | CAN_CTRLMODE_LISTENONLY;
+	priv->model = spi_get_device_id(spi)->driver_data;//获取芯片型号
+	priv->net = net;//指向网络设备
+	dev_set_drvdata(&spi->dev, priv);
+
+	priv->spi = spi;//指向SPI设备
+	mutex_init(&priv->mcp_lock);
+
+	/* If requested, allocate DMA buffers */
+	if (mcp251x_enable_dma) {
+		spi->dev.coherent_dma_mask = ~0;
+
+		/*
+		 * Minimum coherent DMA allocation is PAGE_SIZE, so allocate
+		 * that much and share it between Tx and Rx DMA buffers.
+		 */
+		priv->spi_tx_buf = dma_alloc_coherent(&spi->dev,
+						      PAGE_SIZE,
+						      &priv->spi_tx_dma,
+						      GFP_DMA);
+
+		if (priv->spi_tx_buf) {
+			priv->spi_rx_buf = (u8 *)(priv->spi_tx_buf +
+						  (PAGE_SIZE / 2));
+			priv->spi_rx_dma = (dma_addr_t)(priv->spi_tx_dma +
+							(PAGE_SIZE / 2));
+		} else {
+			/* Fall back to non-DMA */
+			mcp251x_enable_dma = 0;
+		}
+	}
+
+	/* Allocate non-DMA buffers */
+	if (!mcp251x_enable_dma) {
+		priv->spi_tx_buf = kmalloc(SPI_TRANSFER_BUF_LEN, GFP_KERNEL);
+		if (!priv->spi_tx_buf) {
+			ret = -ENOMEM;
+			goto error_tx_buf;
+		}
+		priv->spi_rx_buf = kmalloc(SPI_TRANSFER_BUF_LEN, GFP_KERNEL);
+		if (!priv->spi_rx_buf) {
+			ret = -ENOMEM;
+			goto error_rx_buf;
+		}
+	}
+
+	if (pdata->power_enable)
+		pdata->power_enable(1);
+
+	/* Call out to platform specific setup */
+	if (pdata->board_specific_setup)
+		pdata->board_specific_setup(spi);
+
+	SET_NETDEV_DEV(net, &spi->dev);
+
+	/* Configure the SPI bus */
+	spi->mode = SPI_MODE_0;
+	spi->bits_per_word = 8;
+	spi_setup(spi);
+
+	/* Here is OK to not lock the MCP, no one knows about it yet */
+	if (!mcp251x_hw_probe(spi)) {
+		dev_info(&spi->dev, "Probe failed\n");
+		goto error_probe;
+	}
+	mcp251x_hw_sleep(spi);
+
+	if (pdata->transceiver_enable)
+		pdata->transceiver_enable(0);
+
+	//注册net_device
+	ret = register_candev(net);
+	if (!ret) {
+		dev_info(&spi->dev, "probed\n");
+		return ret;
+	}
+error_probe:
+	if (!mcp251x_enable_dma)
+		kfree(priv->spi_rx_buf);
+error_rx_buf:
+	if (!mcp251x_enable_dma)
+		kfree(priv->spi_tx_buf);
+error_tx_buf:
+	free_candev(net);
+	if (mcp251x_enable_dma)
+		dma_free_coherent(&spi->dev, PAGE_SIZE,
+				  priv->spi_tx_buf, priv->spi_tx_dma);
+error_alloc:
+	if (pdata->power_enable)
+		pdata->power_enable(0);
+	dev_err(&spi->dev, "probe failed\n");
+error_out:
+	return ret;
+}
+
+//接下来分析Socket CAN发送数据流程
+
+/*当我们在用户层通过socket进行CAN数据的发送时，需要进行以下操作：
+
+    （1） 创建一个套接字socket，采用AF_CAN协议；
+
+    （2）将创建的套接字返回描述符sockfd，绑定到本地的地址；
+
+    （3）通过sendto系统调用函数进行发送；
+   int sendto(int sockfd, const void *msg, intlen,unsigned intflags, const struct sockaddr *to, int tolen);
+
+         主要参数说明如下：
+         sockfd:通过socket函数生成的套接字描述符；
+         msg:该指针指向需要发送数据的缓冲区；
+         len:是发送数据的长度；
+         to:目标主机的IP地址及端口号信息； 
+         
+	 sendto的系统调用会发送一帧数据报到指定的地址，在CAN协议调用之前把该地址移到内核空间
+和检查用户空间数据域是否可读。在net/socket.c源文件中，sendto函数的系统调用如下代码：    
+*/
+SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len,
+		unsigned, flags, struct sockaddr __user *, addr,
+		int, addr_len)
+{
+		...
+	
+	 /*把用户空间的地址移动到内核空间中*/
+		if (addr) {
+		err = move_addr_to_kernel(addr, addr_len, (struct sockaddr *)&address);
+		if (err < 0)
+			goto out_put;
+		msg.msg_name = (struct sockaddr *)&address;
+		msg.msg_namelen = addr_len;
+	}
+	err = sock_sendmsg(sock, &msg, len);
+	/*调用函数->__sock_sendmsg(&iocb, sock, msg, size);
+								-> __sock_sendmsg_nosec(iocb, sock, msg, size) 
+									 在__sock_sendmsg_nosec()函数中会返回一个sendmsg函数指针。
+										->sock->ops->sendmsg(iocb, sock, msg, size);
+											在/net/can/raw.c源文件中，将raw_sendmsg函数地址赋给sendmsg函数指针，
+											即在函数__sock_sendmsg_nosec()中return sock->ops->sendmsg(iocb,sock, msg, size)，
+											返回的函数指针将指向raw_sendmsg()函数。
+											static const struct proto_ops raw_ops = {
+												...
+												.poll          = datagram_poll,
+												.ioctl         = can_ioctl,	  //use can_ioctl() from af_can.c 
+												...
+												.sendmsg       = raw_sendmsg,//指向这个函数
+												.recvmsg       = raw_recvmsg,
+												.mmap          = sock_no_mmap,
+												.sendpage      = sock_no_sendpage,
+											};
+											
+											raw_sendmsg(struct kiocb *iocb, struct socket *sock,struct msghdr *msg, size_t size)
+													->can_send(skb, ro->loopback);
+														 在net/can/af_can.c源文件中，can_send函数负责CAN协议层的数据传输，
+														 即传输一帧CAN报文（可选本地回环）。参数skb指针指向套接字缓冲区和
+														 在数据段的CAN帧。loop参数是在本地CAN套接字上为监听者提供回环。
+														 ->dev_queue_xmit(skb);
+														 		->dev_hard_start_xmit(skb, dev, txq);
+														 			->rc = ops->ndo_start_xmit(nskb, dev);
+														 				 以下开始进行到CAN的底层驱动代码了，由于CAN驱动是编译进内核中，
+														 				 所以在系统启动时会注册CAN驱动，注册CAN驱动过程中会初始化
+														 				 mcp251x_netdev_ops结构体变量。在这个过程中，mcp251x_netdev_ops
+														 				 结构体变量定义了3个函数指针，其中(*ndo_start_xmit)函数
+														 				 指针指向mcp251x_hard_start_xmit函数的入口地址。
+														 				 ->调用queue_work(priv->wq, &priv->tx_work);中tx指向的函数。在
+														 				 		之前mcp251x_open中实现INIT_WORK(&priv->tx_work,
+														 				 		mcp251x_tx_work_handler)，然后调用该函数准备消息报文进行传输
+
+	以上即是本人对Socket CAN进行数据发送的理解。
+	*/
+	
+}
+//接下来分析Socket CAN接收数据流程
+
+/*
+	对于网络设备，数据接收大体上采用中断+NAPI机制进行数据的接收。但是我们这里没有采用这样的方法，但是大
+体上的流程比较相似。 
+	当用户态用ifconfig配置网卡IP地址或者启动网卡时调用ndo_open函数。网卡硬件的初始化是在ndo_open中进行
+的。
+*/
+/*
+mcp251x_open(struct net_device *net)
+	->ret = request_threaded_irq(spi->irq, NULL, mcp251x_can_ist,
+		  pdata->irq_flags ? pdata->irq_flags : IRQF_TRIGGER_FALLING,
+		  DEVICE_NAME, priv);
+		注册中断处理函数mcp251x_can_ist函数；当中断产生时，会调用该函数。
+		mcp251x_can_ist(int irq, void *dev_id)
+			->mcp251x_hw_rx(struct spi_device *spi, int buf_idx)
+				->mcp251x_hw_rx_frame(struct spi_device *spi, u8 *buf,int buf_idx)
+					->mcp251x_read_reg
+						然后从CAN模块的接收寄存器中接收数据
+*/
+
+//附外解决方法：（参考）
+//1、在配置Linux 编译选项
+Networking support --->
+	CAN bus subsystem support --->
+		CAN Device Drivers --->
+			Platform CAN drivers with Netlink support
+			CAN bit-timing calculation
+//2.驱动文件mcp251x.c mcp251x.h can.h
+//文件mcp251x.c放在目录drivers/net/can/下；
+//文件mcp251x.h放在目录include/linux/can/platform/下；
+//文件can.h放在目录include/linux/can/下
+
+//3.添加配置文件drivers/net/can/Kconfig
+//在文件中添加
+config CAN_MCP251X
+tristate "Microchip 251x series SPI CAN Controller"
+depends on CAN && SPI
+default N
+---help---
+  Say Y here if you want support for the Microchip 251x series of
+  SPI based CAN controllers.
+
+//4.在drivers/net/can/Makefile文件中添加编译文件
+obj-$(CONFIG_CAN_MCP251X) += mcp251x.o
 
 
+//Linux-c CAN模块测试程序：
+
+/*client*/
+#include <string.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
+#include <linux/can.h>
+
+#ifndef PF_CAN
+#define PF_CAN 29
+#endif
+
+#ifndef AF_CAN
+#define AF_CAN PF_CAN
+#endif
+
+int main()
+{
+	int s;
+	unsigned long nbytes;
+	struct sockaddr_can addr;
+	struct ifreq ifr;
+	struct can_frame frame;
 
 
+	s = socket(PF_CAN,SOCK_RAW,CAN_RAW);
+
+	strcpy((char *)(ifr.ifr_name),"can0");
+	ioctl(s,SIOCGIFINDEX,&ifr);
+	printf("can0 can_ifindex = %x\n",ifr.ifr_ifindex);
 
 
+	addr.can_family = AF_CAN;
+	addr.can_ifindex = ifr.ifr_ifindex;
+	bind(s,(struct sockaddr*)&addr,sizeof(addr));
 
+
+	frame.can_id = 0x123;
+	strcpy((char *)frame.data,"hello");
+	frame.can_dlc = strlen(frame.data);
+
+	printf("Send a CAN frame from interface %s\n",ifr.ifr_name);
+
+	nbytes = sendto(s,&frame,sizeof(struct can_frame),0,(struct sockaddr*)&addr,sizeof(addr));
+	
+	return 0;
+}
+
+
+/*server*/
+#include <string.h>
+#include <sys/ioctl.h>
+#include <net/if.h>
+#include <linux/can.h>
+
+#ifndef PF_CAN
+#define PF_CAN 29
+#endif
+
+#ifndef AF_CAN
+#define AF_CAN PF_CAN
+#endif
+
+int main()
+{
+	int s;
+	unsigned long nbytes,len;
+	struct sockaddr_can addr;
+	struct ifreq ifr;
+	struct can_frame frame;
+
+
+	s = socket(PF_CAN,SOCK_RAW,CAN_RAW);
+
+	strcpy(ifr.ifr_name,"can0");
+	ioctl(s,SIOCGIFINDEX,&ifr);
+	printf("can0 can_ifindex = %x\n",ifr.ifr_ifindex);
+
+	//bind to all enabled can interface
+	addr.can_family = AF_CAN;
+	addr.can_ifindex =0;
+	bind(s,(struct sockaddr*)&addr,sizeof(addr));
+
+	nbytes = recvfrom(s,&frame,sizeof(struct can_frame),0,(struct sockaddr *)&addr,&len);
+	
+	/*get interface name of the received CAN frame*/
+	ifr.ifr_ifindex = addr.can_ifindex;
+	ioctl(s,SIOCGIFNAME,&ifr);
+	printf("Received a CAN frame from interface %s\n",ifr.ifr_name);
+	printf("frame message\n"
+		"--can_id = %x\n"
+		"--can_dlc = %x\n"
+		"--data = %s\n",frame.can_id,frame.can_dlc,frame.data);
+
+	return 0;
+}
 
 
 
