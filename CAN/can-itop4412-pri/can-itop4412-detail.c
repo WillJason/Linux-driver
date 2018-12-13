@@ -908,7 +908,10 @@ int main()
 	return 0;
 }
 
-
+/*参考文献*/
+//1、CAN/GPRS车载网关设计与应用 张立国等
+//2、对Socket CAN的理解（3）——【Socket CAN发送数据流程】 yuzeze
+//3、对Socket CAN的理解（4）——【Socket CAN接收数据流程】 yuzeze
 
 
 
