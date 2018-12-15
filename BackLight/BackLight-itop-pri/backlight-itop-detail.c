@@ -121,6 +121,12 @@ EXPORT_SYMBOL(backlight_device_unregister); //注销背光设备
 
 //这些接口很简单，就不细说了，这样我们的backlight子系统的核心层就介绍完了,这只是一个子系统的核
 //心文件，在这里面并没有注册什么设备，仅仅注册一个类并提供了一个接口。
+//为了支持背光子系统需要在内核中使用以下配置：
+Device Drives ?--->
+	Graphics Support --->
+		[*]Backlight & LCD device support --->
+			<*>Platform LCD controls
+				<*>Lowlevel Backlight controls
 
 
 
