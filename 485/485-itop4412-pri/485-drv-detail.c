@@ -369,9 +369,10 @@ void main(int argc, char* argv[])
 	}
 	else	//send 
 	{
-#ifdef MAX485_CONTROL
-		prepare_to_send(fd2);
-#endif
+		#ifdef MAX485_CONTROL
+			prepare_to_send(fd2);
+		#endif
+		
 		while(1)
 		{
 			printf("Send data, time:%d\r\n", i);
@@ -379,30 +380,29 @@ void main(int argc, char* argv[])
 			//nread = write(fd1, "iTOP-4412: max485 test app\r\n", strlen("iTOP-4412: max485 test app\r\n"));
 			nread = write(fd1, buf, strlen(buf));
 			sleep(1);
-#if 0
-			nread = read(fd1, buf, 100);
-                        if (nread > 0)
-                        {
-                                for(i=0; i<nread; i++)
-                                {
-                                        printf("%c", buf[i]);
-
-                                        if(buf[i] == 'q')
-                                                //break;
-                                                goto exit;
-                                }
-                        }
-                        if(nread)
-                        {
-                                printf("\r\n");
-                        }
-#endif
+			#if 0
+				nread = read(fd1, buf, 100);
+			 	if (nread > 0)
+        {
+           for(i=0; i<nread; i++)
+           {
+               printf("%c", buf[i]);
+               if(buf[i] == 'q')
+               //break;
+               goto exit;
+        	}
+        }
+        if(nread)
+        {
+           printf("\r\n");
+        }
+			#endif
 		}
 	}
-exit:
+	exit:
 	close(fd1);
 
-        return;
+  return;
 }
 
 
