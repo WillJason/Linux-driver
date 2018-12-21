@@ -374,7 +374,10 @@ exit_check_functionality_failed:
 	return err;
 }
 //这个驱动到这里大概的分析基本完成了，我们的i2c使用的是静态注册
-
+/*
+屏幕被触摸--->ft5x06产生中断--->进入中断入口函数ft5x0x_ts_interrupt--->关闭中断--->等待调度--->
+得到CPU资源进入ft5x0x_ts_pen_irq_work执行工作--->开启中断--当次处理结束。
+*/
 
 
 
