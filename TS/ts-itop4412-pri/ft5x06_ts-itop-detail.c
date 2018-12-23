@@ -17,6 +17,11 @@
   I2C的驱动需要根据具体的ARM芯片，一般来说，IC原厂，一般会将在linux的bsp中都会有I2C的驱动，这
 个部分不需要我们去写的，我们只需要将FT5X06和BSP包中的I2C驱动匹配起来就好了。
 */
+//内核配置
+Device Drivers --->
+	Input device support --->
+		Touchscreens --->
+			FT5X0X based touchscreens
 //需要添加i2c的平台设备信息
 #ifdef CONFIG_TOUCHSCREEN_FT5X0X
 #include <plat/ft5x0x_touch.h>
