@@ -260,4 +260,8 @@ static int __devinit tsc2007_probe(struct i2c_client *client,
 	return err;
 }
 
-
+/*
+再来回顾一下整个的流程：
+首先将 TSC2007 设成 PowerDown 模式---->屏幕被触摸--->tsc2007产生中断--->进入中断入口函数tsc2007_irq
+---->关闭中断，延时再提交工作---->未松手则继续提交工作，否则使能中断
+*/
