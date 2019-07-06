@@ -175,8 +175,86 @@ rtc_resume这两个函数也是在class.c中实现 的。接下来调用rtc_dev_init()，这个函数为
 subsys_initcall(rtc_init);
     由subsys_initcall(rtc_init);知道，此函数在系统开始运行的时候即被执行。*/
 
+/*测试参考程序*/
+#include <stdio.h>
+#include <linux/rtc.h>
+#include <sys/ioctl.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <errno.h>
 
+int main(int argc, char **argv)
+{
+    int ret, fd;
+    struct rtc_time rtc_tm;
+    int dev_numb;
 
+    printf("\r\nPlease Select Devie: 0(rtc0), 1(rtc1), 2(rtc2):");
+    scanf("%d",&dev_numb);
+
+    if (0 == dev_numb) fd = open("/dev/rtc0", O_RDWR);
+    else if (1 == dev_numb) fd = open("/dev/rtc1", O_RDWR);
+    else if (2 == dev_numb) fd = open("/dev/rtc2", O_RDWR);
+    else
+    {
+         printf( "Fail to Select Device%d!\n", dev_numb);
+         exit(1);
+    }
+
+    if (fd < 0) 
+    {
+         printf( "Fail to open PCF8563!\n" );
+         exit(1);
+    }
+    
+    ret=ioctl(fd, RTC_RD_TIME, &rtc_tm);
+    if (ret < 0) 
+    {
+           printf( "Fail to read_time!\n" );
+    }
+    else
+    {
+           printf( "\r\nRTC_RD_TIME as follow:" );
+           printf( "\r\n>>rtc_tm.tm_isdst %d",rtc_tm.tm_isdst);
+           printf( "\r\n>>rtc_tm.tm_yday %d",rtc_tm.tm_yday);
+           printf( "\r\n>>rtc_tm.tm_wday %d",rtc_tm.tm_wday);
+           printf( "\r\n>>rtc_tm.tm_year %d",rtc_tm.tm_year);
+           printf( "\r\n>>rtc_tm.tm_mon %d",rtc_tm.tm_mon);
+           printf( "\r\n>>rtc_tm.tm_mday %d",rtc_tm.tm_mday);
+           printf( "\r\n>>rtc_tm.tm_hour %d",rtc_tm.tm_hour);
+           printf( "\r\n>>rtc_tm.tm_min %d",rtc_tm.tm_min);
+           printf( "\r\n>>rtc_tm.tm_sec %d",rtc_tm.tm_sec);
+        printf("\r\nRead PCF8563 time is %d-%d-%d, %02d:%02d:%02d.\n",rtc_tm.tm_mday, rtc_tm.tm_mon + 1, rtc_tm.tm_year + 1900,rtc_tm.tm_hour, rtc_tm.tm_min, rtc_tm.tm_sec);
+    }
+
+    rtc_tm.tm_year = rtc_tm.tm_year+1;
+    rtc_tm.tm_mon = rtc_tm.tm_mon+1;
+    rtc_tm.tm_mday = rtc_tm.tm_mday+1;
+    rtc_tm.tm_hour = rtc_tm.tm_hour+1;
+    rtc_tm.tm_min = rtc_tm.tm_min+1;
+    rtc_tm.tm_sec = rtc_tm.tm_sec+1;
+
+    ret = ioctl(fd, RTC_SET_TIME, &rtc_tm);
+    if (ret < 0) {printf("Fail to set_time!%d\n",errno); /*close(fd); exit(1);*/}
+    else {printf("set_time ok!\n");}
+
+    while (1)
+    {
+        ret=ioctl(fd, RTC_RD_TIME, &rtc_tm);
+        if (ret < 0) 
+        {
+             printf( "Fail to read_time!\n" );
+        }
+        printf("\r\nRead PCF8563 time is %d-%d-%d, %02d:%02d:%02d.\n",rtc_tm.tm_mday, rtc_tm.tm_mon + 1, rtc_tm.tm_year + 1900,rtc_tm.tm_hour, rtc_tm.tm_min, rtc_tm.tm_sec);
+        sleep(1);
+    }
+
+    close(fd);
+    return 0;
+}
 
 
 
