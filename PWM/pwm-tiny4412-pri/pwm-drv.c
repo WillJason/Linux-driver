@@ -115,7 +115,7 @@ static int __init tiny4412_pwm_dev_init(void)
 	
 	pwm_stop();
 	
-	sema_init(&lock, 1);//初始化一个定位在 sem 的匿名信号量。value 参数指定信号量的初始值。
+	sema_init(&lock, 1);//初始化一个定位在 sem 的匿名信号量。value 参数指定信号量的初始值。初始化一个互斥锁，但它把信号量sem的值设置为0，即一开始就处在已锁状态。
 	ret = misc_register(&tiny4412_misc_dev);
 
 	printk(DEVICE_NAME "\tinitialized\n");
